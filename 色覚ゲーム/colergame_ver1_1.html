@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>色覚検定ゲーム</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- ▼ Noto Sans JP の 400(Regular) と 700(Bold) を読み込み ▼ -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- 基本スタイル & レスポンシブ設定 --- */
+        :root {
+            --base-font-size: 16px;
+            --container-padding: 2em;
+            --board-gap: 6px;
+            --panel-gap: 6px;
+            --title-font-size: 2.2rem; /* タイトル用変数 */
+            --info-font-size: 1rem;   /* 情報表示用変数 */
+            --button-font-size: 1rem; /* ボタン用変数 */
+        }
+        html { font-size: var(--base-font-size); }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 400; /* 基本の太さをRegularに */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* ▼ 縦方向中央揃えに戻す ▼ */
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 1em; /* 左右の余白 */
+            box-sizing: border-box;
+            transition: background-color 0.5s ease;
+        }
+        .container {
+            background-color: #fff;
+            padding: var(--container-padding);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            /* ▼ 上下マージンを少し調整 (vh単位も考慮) ▼ */
+            margin: max(1vh, 1em) 0; /* 上下に最低1emのマージン */
+            box-sizing: border-box;
+            transition: box-shadow 0.5s ease;
+        }
+
+        /* --- ▼ タイトルを目立たせる ▼ --- */
+        h1 {
+            color: #1a73e8;
+            margin-top: 0;
+            margin-bottom: 0.8em; /* 下マージン少し詰める */
+            font-size: var(--title-font-size);
+            font-weight: 700; /* 太字 */
+            /* 文字に影を追加 */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
+        }
+
+        /* --- ▼ ゲーム情報エリア (文字太く) ▼ --- */
+        #game-info {
+            display: flex; justify-content: space-around; align-items: center;
+            margin-bottom: 1.2em; /* 下マージン少し詰める */
+            padding: 0.8em 1em; background-color: #e8f0fe;
+            border-radius: 6px; font-size: var(--info-font-size);
+            flex-wrap: wrap; gap: 10px 15px;
+            font-weight: 700; /* 全体を太字に */
+        }
+        #game-info span { display: inline-flex; align-items: center; justify-content: center; min-width: 80px; text-align: center; }
+        #hearts svg { width: 1.4em; height: 1.4em; margin-right: 3px; vertical-align: middle; fill: #e53935; }
+        #hearts svg.broken { fill: #9e9e9e; }
+        /* 値の部分は既に親要素で太字になっているので不要かも */
+        /* #level, #score, #timer { font-weight: 700; margin-left: 0.3em; } */
+        #level, #score, #timer { margin-left: 0.3em; } /* マージンのみ */
+
+
+        /* --- ゲーム盤 (マージン調整) --- */
+        #game-board {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--panel-gap);
+            width: 100%; max-width: min(450px, calc(95vw - var(--container-padding) * 2));
+            aspect-ratio: 1 / 1;
+            /* ▼ 上下マージン調整 ▼ */
+            margin: 1.2em auto;
+            background-color: #eee; padding: var(--board-gap); border-radius: 6px; box-sizing: border-box;
+        }
+        .panel { background-color: #ccc; border-radius: 4px; cursor: pointer; transition: transform 0.1s ease-out, box-shadow 0.1s ease-out; width: 100%; height: 0; padding-bottom: 100%; box-sizing: border-box; position: relative; overflow: hidden; }
+        .panel:hover { transform: scale(1.05); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); z-index: 1; }
+        .panel:focus { outline: 2px solid #1a73e8; outline-offset: 2px; z-index: 1; }
+
+        /* --- ▼ 結果メッセージ (文字太く) ▼ --- */
+        #result-message {
+            font-size: 1.2rem;
+            font-weight: 700; /* 太字 */
+            min-height: 1.5em;
+            margin-bottom: 1em;
+            transition: color 0.3s ease;
+        }
+
+        /* --- ▼ 操作ボタン (文字太く確認) ▼ --- */
+        .controls { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        button {
+            padding: 0.8em 1.5em; font-size: var(--button-font-size);
+            font-weight: 700; /* 太字 */
+            font-family: inherit; border: none; border-radius: 6px; cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease; min-width: 120px;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        #start-btn { background-color: #4CAF50; color: white; }
+        #start-btn:hover:not(:disabled) { background-color: #45a049; }
+        #reset-btn { background-color: #f44336; color: white; }
+        #reset-btn:hover:not(:disabled) { background-color: #e53935; }
+        .hidden { display: none; }
+
+        /* --- クリア演出 (変更なし) --- */
+        body.game-cleared { animation: celebrate-bg 1.5s ease-in-out infinite alternate; }
+        .container.game-cleared { box-shadow: 0 0 25px rgba(255, 215, 0, 0.7); }
+        #result-message.cleared { animation: celebrate-text 1s ease-in-out infinite alternate; font-size: 1.4rem; }
+        @keyframes celebrate-bg { from { background-color: #f0f2f5; } to { background-color: #fffacd; } }
+        @keyframes celebrate-text { from { transform: scale(1); color: blue; } to { transform: scale(1.1); color: gold; } }
+
+        /* --- レスポンシブ対応 (メディアクエリ) --- */
+        @media (max-width: 600px) {
+            :root {
+                --base-font-size: 14px; --container-padding: 1.5em;
+                --board-gap: 4px; --panel-gap: 4px;
+                --title-font-size: 1.8rem; /* タイトルサイズ調整 */
+                --info-font-size: 0.9rem;
+                --button-font-size: 0.95rem;
+            }
+            h1 { margin-bottom: 0.7em; }
+            #game-info { margin-bottom: 1em; }
+            #game-board { max-width: min(400px, calc(95vw - var(--container-padding) * 2)); margin: 1em auto; }
+            button { padding: 0.7em 1.2em; min-width: 100px; }
+            #result-message { font-size: 1.1rem; }
+            #result-message.cleared { font-size: 1.3rem; }
+        }
+        @media (max-width: 400px) {
+            :root {
+                --base-font-size: 13px; --container-padding: 1em;
+                --title-font-size: 1.6rem; /* タイトルサイズ調整 */
+            }
+             h1 { margin-bottom: 0.6em; }
+            #game-info { justify-content: center; }
+             #game-board { max-width: min(300px, calc(95vw - var(--container-padding) * 2)); margin: 0.8em auto; }
+            .controls { gap: 10px; }
+             button { min-width: 90px; }
+        }
+
+        /* --- ▼ 画面高さが低い場合の調整 ▼ --- */
+        @media (max-height: 650px) and (min-width: 401px) { /* 幅が狭い場合は幅のメディアクエリが優先されるように */
+             :root {
+                --container-padding: 1.2em;
+                --title-font-size: 1.8rem;
+                --info-font-size: 0.9rem;
+                --button-font-size: 0.9rem;
+             }
+             body { padding-top: 0.5em; padding-bottom: 0.5em; } /* bodyの上下パディングも詰める */
+             .container { margin: 0.5em 0; } /* コンテナの上下マージン詰める */
+             h1 { margin-bottom: 0.5em; }
+             #game-info { margin-bottom: 0.8em; padding: 0.6em 0.8em; }
+             #game-board { margin: 0.8em auto; }
+             #result-message { margin-bottom: 0.8em; }
+             button { padding: 0.6em 1em; }
+        }
+         @media (max-height: 550px) and (min-width: 401px) {
+              :root {
+                --title-font-size: 1.6rem;
+                --info-font-size: 0.85rem;
+             }
+             h1 { margin-bottom: 0.4em; }
+             #game-info { margin-bottom: 0.6em; }
+             #game-board { margin: 0.6em auto; }
+             #result-message { margin-bottom: 0.6em; font-size: 1rem; }
+         }
+
+    </style>
+</head>
+<body>
+    <!-- HTML部分は変更なし -->
+    <div class="container">
+        <h1>色覚検定ゲーム</h1>
+        <div id="game-info">
+            <span>ライフ: <span id="hearts"></span></span>
+            <span>レベル: <span id="level">1</span></span>
+            <span>スコア: <span id="score">0</span></span>
+            <span>タイマー: <span id="timer">0.0</span></span>
+        </div>
+        <div id="game-board"></div>
+        <p id="result-message"></p>
+        <div class="controls">
+            <button id="start-btn">ゲーム開始</button>
+            <button id="reset-btn" class="hidden">リセット</button>
+        </div>
+    </div>
+
+    <!-- JavaScript部分は変更なし -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const GAME_SETTINGS = { INITIAL_LIVES: 3, MAX_LEVEL: 10, TIMER_DURATION_BASE: 10000, TIMER_DECREMENT_PER_LEVEL: 500, MIN_TIMER_DURATION: 3000, NUM_PANELS: 25, GRID_SIZE: 5, DIFFICULTY_FACTOR_BASE: 65, DIFFICULTY_DECREMENT_PER_LEVEL: 5, MIN_DIFFICULTY_FACTOR: 15, RESULT_DISPLAY_DELAY: 1000, SCORE_BASE_PER_LEVEL: 10, SCORE_BONUS_PER_LIFE: 5 };
+            const gameBoard = document.getElementById('game-board'); const startBtn = document.getElementById('start-btn'); const resetBtn = document.getElementById('reset-btn'); const resultMessage = document.getElementById('result-message'); const levelDisplay = document.getElementById('level'); const scoreDisplay = document.getElementById('score'); const heartsContainer = document.getElementById('hearts'); const timerDisplay = document.getElementById('timer'); const bodyElement = document.body; const containerElement = document.querySelector('.container');
+            let gameActive = false; let currentLevel = 1; let score = 0; let lives = GAME_SETTINGS.INITIAL_LIVES; let targetIndex = -1; let timerInterval = null; let timeLeft = 0;
+            startBtn.addEventListener('click', startGame); resetBtn.addEventListener('click', resetGame); gameBoard.addEventListener('click', handleBoardClick); gameBoard.addEventListener('keydown', handleBoardKeyDown);
+            initializeGameUI();
+            function initializeGameUI() { levelDisplay.textContent = currentLevel; scoreDisplay.textContent = score; renderHearts(); const initialTime = GAME_SETTINGS.TIMER_DURATION_BASE / 1000; timerDisplay.textContent = initialTime.toFixed(1); startBtn.classList.remove('hidden'); resetBtn.classList.add('hidden'); hideResult(); gameBoard.innerHTML = ''; gameBoard.style.gridTemplateColumns = `repeat(${GAME_SETTINGS.GRID_SIZE}, 1fr)`; bodyElement.classList.remove('game-cleared'); containerElement.classList.remove('game-cleared'); resultMessage.classList.remove('cleared'); disablePanelInteraction(); }
+            function startGame() { if (gameActive) return; currentLevel = 1; score = 0; lives = GAME_SETTINGS.INITIAL_LIVES; initializeGameUI(); gameActive = true; startBtn.classList.add('hidden'); resetBtn.classList.remove('hidden'); hideResult(); setupLevel(); }
+            function resetGame() { stopTimer(); gameActive = false; currentLevel = 1; score = 0; lives = GAME_SETTINGS.INITIAL_LIVES; initializeGameUI(); }
+            function renderHearts() { heartsContainer.innerHTML = ''; const heartSVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`; const brokenHeartSVG = `<svg class="broken" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13.45 3.13l-.2.23-.2-.23C12.46 2.52 11.76 2 11 2c-1.74 0-3.41.81-4.5 2.09C5.41 5.19 5 6.3 5 7.5c0 2.12 1.64 4.15 4.18 6.51l.47.43-.65.65-3.05-2.73c-1.04-.94-2.08-2-2.08-3.36 0-1.54 1.13-2.84 2.62-3.16.8-.18 1.63-.01 2.38.51L9.5 5.5l1.5-1.5-1.1-1.1c.6-.5 1.3-.7 2.1-.7.76 0 1.46.29 2.05.88l.2.23zM19.5 3c-1.74 0-3.41.81-4.5 2.09l-1.1 1.1 1.5 1.5L16 6.5l.38-.38c.75-.52 1.58-.69 2.38-.51 1.49.32 2.62 1.62 2.62 3.16 0 1.36-1.04 2.42-2.08 3.36l-3.05 2.73.65.65.47-.43C17.36 11.65 19 9.62 19 7.5c0-1.2-.41-2.31-1.5-3.41z"/></svg>`; for (let i = 0; i < lives; i++) { const heartElement = document.createElement('span'); heartElement.innerHTML = heartSVG; heartsContainer.appendChild(heartElement); } if (lives === 0) { const heartElement = document.createElement('span'); heartElement.innerHTML = brokenHeartSVG; heartsContainer.appendChild(heartElement); } }
+            function setupLevel() { if (currentLevel > GAME_SETTINGS.MAX_LEVEL) { gameClear(); return; } levelDisplay.textContent = currentLevel; gameBoard.innerHTML = ''; hideResult(); const difficultyFactor = Math.max(GAME_SETTINGS.MIN_DIFFICULTY_FACTOR, GAME_SETTINGS.DIFFICULTY_FACTOR_BASE - (currentLevel - 1) * GAME_SETTINGS.DIFFICULTY_DECREMENT_PER_LEVEL); gameBoard.style.gridTemplateColumns = `repeat(${GAME_SETTINGS.GRID_SIZE}, 1fr)`; const baseColor = generateRandomColor(); const targetColor = generateSlightlyDifferentColor(baseColor, difficultyFactor); targetIndex = Math.floor(Math.random() * GAME_SETTINGS.NUM_PANELS); const fragment = document.createDocumentFragment(); for (let i = 0; i < GAME_SETTINGS.NUM_PANELS; i++) { const panel = document.createElement('div'); panel.classList.add('panel'); panel.style.backgroundColor = (i === targetIndex) ? targetColor : baseColor; panel.dataset.target = (i === targetIndex) ? 'true' : 'false'; panel.setAttribute('role', 'button'); panel.setAttribute('tabindex', '0'); fragment.appendChild(panel); } gameBoard.appendChild(fragment); enablePanelInteraction(); startTimer(); }
+            function startTimer() { stopTimer(); timeLeft = Math.max(GAME_SETTINGS.MIN_TIMER_DURATION, GAME_SETTINGS.TIMER_DURATION_BASE - (currentLevel - 1) * GAME_SETTINGS.TIMER_DECREMENT_PER_LEVEL); updateTimerDisplay(timeLeft); const startTime = Date.now(); timerInterval = setInterval(() => { const elapsedTime = Date.now() - startTime; const remaining = timeLeft - elapsedTime; if (remaining <= 0) { stopTimer(); updateTimerDisplay(0); handleTimeOut(); } else { updateTimerDisplay(remaining); } }, 100); }
+            function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+            function handleBoardClick(event) { if (!gameActive) return; const clickedPanel = event.target.closest('.panel'); if (clickedPanel) { processPanelSelection(clickedPanel); } }
+            function handleBoardKeyDown(event) { if (!gameActive) return; if (event.key === 'Enter' || event.key === ' ') { const focusedPanel = document.activeElement; if (focusedPanel && focusedPanel.classList.contains('panel')) { event.preventDefault(); processPanelSelection(focusedPanel); } } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); const panels = Array.from(gameBoard.querySelectorAll('.panel')); const currentFocusIndex = panels.findIndex(p => p === document.activeElement); let nextFocusIndex = -1; const cols = GAME_SETTINGS.GRID_SIZE; if (currentFocusIndex !== -1) { switch (event.key) { case 'ArrowUp': nextFocusIndex = currentFocusIndex - cols; break; case 'ArrowDown': nextFocusIndex = currentFocusIndex + cols; break; case 'ArrowLeft': nextFocusIndex = currentFocusIndex - 1; if (currentFocusIndex % cols === 0) nextFocusIndex = -1; break; case 'ArrowRight': nextFocusIndex = currentFocusIndex + 1; if (currentFocusIndex % cols === cols - 1) nextFocusIndex = -1; break; } if (nextFocusIndex >= 0 && nextFocusIndex < panels.length) { panels[nextFocusIndex].focus(); } } else if (panels.length > 0) { panels[0].focus(); } } }
+            function processPanelSelection(panel) { if (!gameActive) return; stopTimer(); disablePanelInteraction(); if (panel.dataset.target === 'true') { const levelScore = currentLevel * GAME_SETTINGS.SCORE_BASE_PER_LEVEL; const lifeBonus = lives * GAME_SETTINGS.SCORE_BONUS_PER_LIFE; score += levelScore + lifeBonus; scoreDisplay.textContent = score; showResult('正解！ ✨', 'green'); currentLevel++; setTimeout(setupLevel, GAME_SETTINGS.RESULT_DISPLAY_DELAY); } else { showResult('不正解... 💧', 'red'); handleIncorrectChoice(); } }
+            function handleTimeOut() { showResult('時間切れ！ ⏳', 'orange'); handleIncorrectChoice(); }
+            function handleIncorrectChoice() { lives--; renderHearts(); if (lives <= 0) { setTimeout(gameOver, GAME_SETTINGS.RESULT_DISPLAY_DELAY); } else { setTimeout(setupLevel, GAME_SETTINGS.RESULT_DISPLAY_DELAY * 0.8); } }
+            function gameClear() { showResult(`🏆 全ステージクリア！おめでとう！ 🏆 スコア: ${score}`, 'purple'); resultMessage.classList.add('cleared'); bodyElement.classList.add('game-cleared'); containerElement.classList.add('game-cleared'); endGame(); }
+            function gameOver() { renderHearts(); showResult(`ゲームオーバー... スコア: ${score}`, 'black'); endGame(); }
+            function endGame() { gameActive = false; stopTimer(); resetBtn.classList.remove('hidden'); startBtn.classList.add('hidden'); disablePanelInteraction(); }
+            function disablePanelInteraction() { gameBoard.style.pointerEvents = 'none'; gameBoard.querySelectorAll('.panel').forEach(p => { p.removeAttribute('tabindex'); }); }
+            function enablePanelInteraction() { gameBoard.style.pointerEvents = 'auto'; gameBoard.querySelectorAll('.panel').forEach(p => { p.setAttribute('tabindex', '0'); }); }
+            function showResult(message, color) { resultMessage.textContent = message; resultMessage.style.color = color; resultMessage.classList.remove('hidden'); }
+            function hideResult() { resultMessage.classList.add('hidden'); resultMessage.textContent = ''; resultMessage.classList.remove('cleared'); }
+            function updateTimerDisplay(remainingTimeMs) { timerDisplay.textContent = (remainingTimeMs / 1000).toFixed(1); }
+            function generateRandomColor() { const r = Math.floor(Math.random() * 156) + 100; const g = Math.floor(Math.random() * 156) + 100; const b = Math.floor(Math.random() * 156) + 100; return `rgb(${r}, ${g}, ${b})`; }
+            function generateSlightlyDifferentColor(rgbString, difference) { const [r, g, b] = rgbString.match(/\d+/g).map(Number); let newR, newG, newB; let attempts = 0; const maxAttempts = 25; do { newR = r; newG = g; newB = b; const changeIndex = Math.floor(Math.random() * 3); const effectiveDifference = Math.max(difference, 3); const changeAmount = Math.random() < 0.5 ? effectiveDifference : -effectiveDifference; if (changeIndex === 0) newR = r + changeAmount; else if (changeIndex === 1) newG = g + changeAmount; else newB = b + changeAmount; newR = Math.max(0, Math.min(255, Math.round(newR))); newG = Math.max(0, Math.min(255, Math.round(newG))); newB = Math.max(0, Math.min(255, Math.round(newB))); attempts++; } while ((newR === r && newG === g && newB === b) && attempts < maxAttempts); if (newR === r && newG === g && newB === b) { console.warn(`Color generation: Forcing change after ${maxAttempts} attempts. Base:(${r},${g},${b}), Level: ${currentLevel}, Diff: ${difference}`); const forceChangeIndex = Math.floor(Math.random() * 3); const forceChangeAmount = (Math.random() < 0.5 || [r,g,b][forceChangeIndex] === 255) ? -1 : 1; if (forceChangeIndex === 0) newR = Math.max(0, Math.min(255, r + forceChangeAmount)); else if (forceChangeIndex === 1) newG = Math.max(0, Math.min(255, g + forceChangeAmount)); else newB = Math.max(0, Math.min(255, b + forceChangeAmount)); if (newR === r && newG === g && newB === b) newR = (r + 1) % 256; } return `rgb(${newR}, ${newG}, ${newB})`; }
+        });
+    </script>
+</body>
+</html>
