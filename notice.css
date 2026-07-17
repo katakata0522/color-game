@@ -1,0 +1,24 @@
+.experience-notice {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #c7d8f3;
+  border-radius: 8px;
+  background: #f4f8ff;
+  color: #31445f;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  text-align: left;
+}
+
+html[data-theme="dark"] .experience-notice {
+  border-color: #526883;
+  background: #253247;
+  color: #dbeafe;
+}
+
+@media (max-width: 600px) {
+  .experience-notice {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.86rem;
+  }
+}
