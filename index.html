@@ -33,10 +33,10 @@
 
   <!-- 色の見え方を簡易的に模した表示切替 -->
   <div id="cb-mode-switcher" role="group" aria-label="簡易表示シミュレーション">
-    <button data-type="normal" class="selected">通常</button>
-    <button data-type="protanopia">プロタン</button>
-    <button data-type="deuteranopia">デュータン</button>
-    <button data-type="tritanopia">トリタン</button>
+    <button data-type="normal" class="selected" aria-pressed="true">通常</button>
+    <button data-type="protanopia" aria-pressed="false">プロタン</button>
+    <button data-type="deuteranopia" aria-pressed="false">デュータン</button>
+    <button data-type="tritanopia" aria-pressed="false">トリタン</button>
     <span id="cb-tooltip"></span>
   </div>
 
@@ -63,5 +63,6 @@
 </div>
 <script src="script.js"></script>
 <script src="theme-safety.js"></script>
+<script src="accessibility.js"></script>
 </body>
 </html>
