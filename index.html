@@ -11,15 +11,16 @@
 <div class="container" id="game-container">
   
   <div class="header-row">
+    <button id="theme-toggle-btn" class="header-icon-btn theme-toggle-btn" aria-label="ダークモードへ切り替える" title="ライト／ダークモード">🌙</button>
     <h1>色覚検定ゲーム</h1>
-    <button id="sound-toggle-btn" aria-label="効果音の切り替え" title="効果音 ON/OFF">🔊</button>
+    <button id="sound-toggle-btn" class="header-icon-btn sound-toggle-btn" aria-label="効果音の切り替え" title="効果音 ON/OFF">🔊</button>
   </div>
 
   <!-- 強調体験モードON/OFF -->
   <div id="highlight-switcher">
     <span>強調体験モード</span>
     <button id="highlight-btn" aria-pressed="false" title="色弱の人が「区別しにくい」世界をより体感できます">OFF</button>
-    <span style="font-size:0.9em;color:#666;">
+    <span class="highlight-description">
       <span id="highlight-desc">(ONにすると1～3問目の色が“かなり近い色”に)</span>
     </span>
   </div>
@@ -44,6 +45,7 @@
   
   <!-- aria-live="assertive" でスクリーンリーダーに即座に通知 -->
   <p id="result-message" aria-live="assertive"></p>
+  <p id="app-status" class="app-status hidden" aria-live="polite"></p>
   
   <div class="controls">
     <button id="start-btn">ゲーム開始</button>
@@ -54,5 +56,6 @@
 
 </div>
 <script src="script.js"></script>
+<script src="theme-safety.js"></script>
 </body>
 </html>
