@@ -305,9 +305,9 @@ class UIManager {
 
     showAdvice() {
         this.dom.advice.innerHTML = `
-            最近目を酷使しすぎていませんか？<br>
-            色の見え方は体調や疲労でも変わることがあります。<br>
-            気になるようなら、一度病院で相談してみるのも選択肢です。<br>
+            このゲームは医療上の検査・診断を行うものではありません。<br>
+            色の見え方は、画面設定・周囲の明るさ・体調・疲労などでも変わります。<br>
+            日常生活で色の見分けに困ることが続く場合は、眼科などの医療機関へ相談してください。<br>
             <b>目は大切に！</b>👀✨
             <br><a href="https://www.gankaikai.or.jp/health/50/" target="_blank" rel="noopener" style="color:#1a73e8;text-decoration:underline">色覚異常について詳しく(日本眼科医会)</a>
         `;
@@ -343,8 +343,8 @@ class GameManager {
         this.timeLeft = 0;
         this.gameStartTime = 0;
         
-        // 早期発見フラグ（1~3問目でミスがあったか）
-        this.colorBlindFlag = false;
+        // 最初の3問でのミス回数（ゲーム結果だけで診断しないため回数で扱う）
+        this.earlyStageMistakes = 0;
         
         this.panelsData = [];
 
@@ -371,7 +371,7 @@ class GameManager {
         this.score = 0;
         this.lives = GAME_SETTINGS.INITIAL_LIVES;
         this.currentQuestion = 1;
-        this.colorBlindFlag = false;
+        this.earlyStageMistakes = 0;
         this.gameStartTime = Date.now();
         
         this.ui.updateScore(this.score);
@@ -390,7 +390,7 @@ class GameManager {
         this.currentQuestion = 1;
         this.score = 0;
         this.lives = GAME_SETTINGS.INITIAL_LIVES;
-        this.colorBlindFlag = false;
+        this.earlyStageMistakes = 0;
         
         this.ui.updateQuestion(this.currentQuestion, GAME_SETTINGS.MAX_QUESTIONS);
         this.ui.updateScore(this.score);
@@ -459,17 +459,22 @@ class GameManager {
     }
 
     updateBoardColors() {
-        const isEarlyStage = this.currentQuestion <= 3;
+        const highlightStageByType = {
+            protanopia: 1,
+            deuteranopia: 2,
+            tritanopia: 3
+        };
+        const shouldHighlightTarget =
+            this.highlightExperienceMode &&
+            highlightStageByType[this.currentCBType] === this.currentQuestion;
+
         this.panelsData.forEach(p => {
-            // 強調モード処理（1～3問目のみ）
-            if (this.highlightExperienceMode && isEarlyStage) {
-                if (this.currentCBType === "protanopia" && this.currentQuestion === 1) p.displayColor = "#828d82";
-                else if (this.currentCBType === "deuteranopia" && this.currentQuestion === 2) p.displayColor = "#7d907d";
-                else if (this.currentCBType === "tritanopia" && this.currentQuestion === 3) p.displayColor = "#bdbdbd";
-                else p.displayColor = this.rgbToCss(this.applyColorBlindness(p.rawRGB, this.currentCBType));
-            } else {
-                p.displayColor = this.rgbToCss(this.applyColorBlindness(p.rawRGB, this.currentCBType));
-            }
+            const simulatedColor = this.applyColorBlindness(p.rawRGB, this.currentCBType);
+            // 強調モードでは対象パネルだけ明度差を足し、正解不能にならないようにする。
+            const displayColor = shouldHighlightTarget && p.isTarget
+                ? this.adjustBrightness(simulatedColor, 55)
+                : simulatedColor;
+            p.displayColor = this.rgbToCss(displayColor);
         });
         this.ui.drawBoard(this.panelsData);
     }
@@ -496,7 +501,7 @@ class GameManager {
             this.ui.shakeBoard();
             this.ui.showResult('不正解... 💧', '#f44336');
             
-            if (isColorBlindTestStage) this.colorBlindFlag = true;
+            if (isColorBlindTestStage) this.earlyStageMistakes++;
             this.processMistake();
         }
     }
@@ -541,7 +546,7 @@ class GameManager {
         this.sound.playTimeout();
         this.ui.setInteractions(false);
         this.ui.showResult('時間切れ！ ⏳', '#ff9800');
-        if (this.currentQuestion <= colorBlindnessTestStages.length) this.colorBlindFlag = true;
+        if (this.currentQuestion <= colorBlindnessTestStages.length) this.earlyStageMistakes++;
         this.processMistake();
     }
 
@@ -560,7 +565,7 @@ class GameManager {
             this.ui.showResult(`ゲームオーバー... スコア: ${this.score}`, '#333');
         }
 
-        if (this.colorBlindFlag) {
+        if (this.earlyStageMistakes >= 2) {
             this.ui.showAdvice();
         }
     }
@@ -580,6 +585,10 @@ class GameManager {
         const g = rgbArr[0] * m[1][0] + rgbArr[1] * m[1][1] + rgbArr[2] * m[1][2];
         const b = rgbArr[0] * m[2][0] + rgbArr[1] * m[2][1] + rgbArr[2] * m[2][2];
         return [Math.round(r), Math.round(g), Math.round(b)];
+    }
+
+    adjustBrightness(rgbArr, amount) {
+        return rgbArr.map(value => Math.max(0, Math.min(255, value + amount)));
     }
 
     rgbToCss(arr) {
