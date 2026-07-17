@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>色覚検定ゲーム v5.0</title>
+  <title>色の見え方体験ゲーム v5.0</title>
+  <meta name="description" content="色の違いを見分けるブラウザゲームです。医療上の検査・診断・判定を行うものではありません。">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,21 +13,25 @@
   
   <div class="header-row">
     <button id="theme-toggle-btn" class="header-icon-btn theme-toggle-btn" aria-label="ダークモードへ切り替える" title="ライト／ダークモード">🌙</button>
-    <h1>色覚検定ゲーム</h1>
+    <h1>色の見え方体験ゲーム</h1>
     <button id="sound-toggle-btn" class="header-icon-btn sound-toggle-btn" aria-label="効果音の切り替え" title="効果音 ON/OFF">🔊</button>
   </div>
+
+  <p class="experience-notice" role="note">
+    このゲームは色の見え方の違いを簡易的に体験する娯楽コンテンツです。医療上の検査・診断・判定には使用できません。画面設定、周囲の明るさ、体調などでも結果が変わります。
+  </p>
 
   <!-- 強調体験モードON/OFF -->
   <div id="highlight-switcher">
     <span>強調体験モード</span>
-    <button id="highlight-btn" aria-pressed="false" title="色弱の人が「区別しにくい」世界をより体感できます">OFF</button>
+    <button id="highlight-btn" aria-pressed="false" title="色の区別が難しい表示を簡易的に体験します">OFF</button>
     <span class="highlight-description">
       <span id="highlight-desc">(ONにすると1～3問目の色が“かなり近い色”に)</span>
     </span>
   </div>
 
-  <!-- 色覚タイプ切替 -->
-  <div id="cb-mode-switcher">
+  <!-- 色の見え方を簡易的に模した表示切替 -->
+  <div id="cb-mode-switcher" aria-label="簡易表示シミュレーション">
     <button data-type="normal" class="selected">通常</button>
     <button data-type="protanopia">プロタン</button>
     <button data-type="deuteranopia">デュータン</button>
