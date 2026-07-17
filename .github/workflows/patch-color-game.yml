@@ -1,0 +1,166 @@
+name: Patch color game safely
+
+on:
+  push:
+    branches:
+      - fix/color-game-highlight-and-advice
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/color-game-highlight-and-advice
+          fetch-depth: 0
+
+      - name: Patch impossible highlight mode and over-eager advice
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('script.js')
+          source = path.read_text(encoding='utf-8')
+          original = source
+
+          source = source.replace(
+              '''    showAdvice() {
+                  this.dom.advice.innerHTML = `
+                      最近目を酷使しすぎていませんか？<br>
+                      色の見え方は体調や疲労でも変わることがあります。<br>
+                      気になるようなら、一度病院で相談してみるのも選択肢です。<br>
+                      <b>目は大切に！</b>👀✨
+                      <br><a href="https://www.gankaikai.or.jp/health/50/" target="_blank" rel="noopener" style="color:#1a73e8;text-decoration:underline">色覚異常について詳しく(日本眼科医会)</a>
+                  `;
+                  this.dom.advice.classList.remove('hidden');
+              }''',
+              '''    showAdvice() {
+                  this.dom.advice.innerHTML = `
+                      このゲームは医療上の検査・診断を行うものではありません。<br>
+                      色の見え方は、画面設定・周囲の明るさ・体調・疲労などでも変わります。<br>
+                      日常生活で色の見分けに困ることが続く場合は、眼科などの医療機関へ相談してください。<br>
+                      <b>目は大切に！</b>👀✨
+                      <br><a href="https://www.gankaikai.or.jp/health/50/" target="_blank" rel="noopener" style="color:#1a73e8;text-decoration:underline">色覚異常について詳しく(日本眼科医会)</a>
+                  `;
+                  this.dom.advice.classList.remove('hidden');
+              }'''
+          )
+
+          source = source.replace(
+              '''        // 早期発見フラグ（1~3問目でミスがあったか）
+                  this.colorBlindFlag = false;''',
+              '''        // 最初の3問でのミス回数（ゲーム結果だけで診断しないため回数で扱う）
+                  this.earlyStageMistakes = 0;'''
+          )
+          source = source.replace('this.colorBlindFlag = false;', 'this.earlyStageMistakes = 0;')
+
+          old_board = '''    updateBoardColors() {
+                  const isEarlyStage = this.currentQuestion <= 3;
+                  this.panelsData.forEach(p => {
+                      // 強調モード処理（1～3問目のみ）
+                      if (this.highlightExperienceMode && isEarlyStage) {
+                          if (this.currentCBType === "protanopia" && this.currentQuestion === 1) p.displayColor = "#828d82";
+                          else if (this.currentCBType === "deuteranopia" && this.currentQuestion === 2) p.displayColor = "#7d907d";
+                          else if (this.currentCBType === "tritanopia" && this.currentQuestion === 3) p.displayColor = "#bdbdbd";
+                          else p.displayColor = this.rgbToCss(this.applyColorBlindness(p.rawRGB, this.currentCBType));
+                      } else {
+                          p.displayColor = this.rgbToCss(this.applyColorBlindness(p.rawRGB, this.currentCBType));
+                      }
+                  });
+                  this.ui.drawBoard(this.panelsData);
+              }'''
+          new_board = '''    updateBoardColors() {
+                  const highlightStageByType = {
+                      protanopia: 1,
+                      deuteranopia: 2,
+                      tritanopia: 3
+                  };
+                  const shouldHighlightTarget =
+                      this.highlightExperienceMode &&
+                      highlightStageByType[this.currentCBType] === this.currentQuestion;
+
+                  this.panelsData.forEach(p => {
+                      const simulatedColor = this.applyColorBlindness(p.rawRGB, this.currentCBType);
+                      // 強調モードでは対象パネルだけ明度差を足し、正解不能にならないようにする。
+                      const displayColor = shouldHighlightTarget && p.isTarget
+                          ? this.adjustBrightness(simulatedColor, 55)
+                          : simulatedColor;
+                      p.displayColor = this.rgbToCss(displayColor);
+                  });
+                  this.ui.drawBoard(this.panelsData);
+              }'''
+          source = source.replace(old_board, new_board)
+
+          source = source.replace(
+              'if (isColorBlindTestStage) this.colorBlindFlag = true;',
+              'if (isColorBlindTestStage) this.earlyStageMistakes++;'
+          )
+          source = source.replace(
+              'if (this.currentQuestion <= colorBlindnessTestStages.length) this.colorBlindFlag = true;',
+              'if (this.currentQuestion <= colorBlindnessTestStages.length) this.earlyStageMistakes++;'
+          )
+          source = source.replace(
+              'if (this.colorBlindFlag) {',
+              'if (this.earlyStageMistakes >= 2) {'
+          )
+
+          source = source.replace(
+              '''    rgbToCss(arr) {
+                  return `rgb(${arr[0]},${arr[1]},${arr[2]})`;
+              }''',
+              '''    adjustBrightness(rgbArr, amount) {
+                  return rgbArr.map(value => Math.max(0, Math.min(255, value + amount)));
+              }
+
+              rgbToCss(arr) {
+                  return `rgb(${arr[0]},${arr[1]},${arr[2]})`;
+              }'''
+          )
+
+          required = [
+              'this.earlyStageMistakes = 0;',
+              'this.earlyStageMistakes >= 2',
+              'shouldHighlightTarget && p.isTarget',
+              'adjustBrightness(simulatedColor, 55)',
+              'このゲームは医療上の検査・診断を行うものではありません。'
+          ]
+          missing = [item for item in required if item not in source]
+          if source == original or missing:
+              raise SystemExit(f'Expected color-game patches were not fully applied: {missing}')
+          if 'this.colorBlindFlag' in source:
+              raise SystemExit('Legacy one-mistake flag still remains')
+          if '#828d82' in source or '#7d907d' in source or '#bdbdbd' in source:
+              raise SystemExit('Fixed identical highlight colors still remain')
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Verify JavaScript syntax and behavior boundaries
+        shell: bash
+        run: |
+          node --check script.js
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('script.js').read_text(encoding='utf-8')
+          assert source.count('this.earlyStageMistakes++;') == 2
+          assert 'this.earlyStageMistakes >= 2' in source
+          assert 'shouldHighlightTarget && p.isTarget' in source
+          assert 'this.adjustBrightness(simulatedColor, 55)' in source
+          assert '医療上の検査・診断を行うものではありません' in source
+          print('Targeted checks passed')
+          PY
+
+      - name: Commit verified fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/patch-color-game.yml
+          git config user.name "chatgpt-coding-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add script.js .github/workflows/patch-color-game.yml
+          git commit -m "fix: prevent impossible highlight rounds and soften advice trigger"
+          git push origin HEAD:fix/color-game-highlight-and-advice
