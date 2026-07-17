@@ -1,0 +1,72 @@
+[
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 142,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 229,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 237,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 241,
+    "message": "insertAdjacentHTML"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 244,
+    "message": "insertAdjacentHTML"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 274,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 280,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 307,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "MEDIUM",
+    "category": "html-sink",
+    "path": "script.js",
+    "line": 318,
+    "message": "innerHTML assignment"
+  },
+  {
+    "severity": "LOW",
+    "category": "storage",
+    "path": "docs/IDEAS.md",
+    "line": 18,
+    "message": "localStorage is user-controlled"
+  }
+]
