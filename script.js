@@ -340,6 +340,7 @@ class GameManager {
         this.targetIndex = -1;
         
         this.timerInterval = null;
+        this.transitionTimeout = null;
         this.timeLeft = 0;
         this.gameStartTime = 0;
         
@@ -364,8 +365,25 @@ class GameManager {
         return this.highlightExperienceMode;
     }
 
+    clearTransitionTimeout() {
+        if (this.transitionTimeout) {
+            clearTimeout(this.transitionTimeout);
+            this.transitionTimeout = null;
+        }
+    }
+
+    scheduleTransition(callback, delay) {
+        this.clearTransitionTimeout();
+        this.transitionTimeout = setTimeout(() => {
+            this.transitionTimeout = null;
+            if (!this.gameActive) return;
+            callback();
+        }, delay);
+    }
+
     startGame() {
         if (this.gameActive) return;
+        this.clearTransitionTimeout();
         this.sound.init(); // ユーザーインタラクション時にAudioContextを初期化
         this.gameActive = true;
         this.score = 0;
@@ -385,6 +403,7 @@ class GameManager {
     }
 
     resetGame() {
+        this.clearTransitionTimeout();
         this.stopTimer();
         this.gameActive = false;
         this.currentQuestion = 1;
@@ -409,6 +428,7 @@ class GameManager {
     }
 
     setupQuestion() {
+        if (!this.gameActive) return;
         if (this.lives <= 0) { this.endGame('over'); return; }
         if (this.currentQuestion > GAME_SETTINGS.MAX_QUESTIONS) { this.endGame('clear'); return; }
 
@@ -494,7 +514,7 @@ class GameManager {
             this.ui.updateScore(this.score);
             this.ui.showResult('正解！✨', '#4CAF50');
             this.currentQuestion++;
-            setTimeout(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
+            this.scheduleTransition(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
         } else {
             this.sound.playWrong();
             this.ui.shakePanel(index);
@@ -510,10 +530,10 @@ class GameManager {
         this.lives--;
         this.ui.renderHearts(this.lives);
         if (this.lives <= 0) {
-            setTimeout(() => this.endGame('over'), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
+            this.scheduleTransition(() => this.endGame('over'), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
         } else {
             // ミス時は少し早めに次へ
-            setTimeout(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY * 0.8);
+            this.scheduleTransition(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY * 0.8);
         }
     }
 
@@ -543,6 +563,7 @@ class GameManager {
     }
 
     handleTimeOut() {
+        if (!this.gameActive) return;
         this.sound.playTimeout();
         this.ui.setInteractions(false);
         this.ui.showResult('時間切れ！ ⏳', '#ff9800');
@@ -551,6 +572,8 @@ class GameManager {
     }
 
     endGame(type) {
+        if (!this.gameActive) return;
+        this.clearTransitionTimeout();
         this.gameActive = false;
         this.stopTimer();
         this.ui.setInteractions(false);
