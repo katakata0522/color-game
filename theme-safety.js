@@ -50,12 +50,18 @@
     status.classList.remove('hidden');
   }
 
+  function handleSystemThemeChange(event) {
+    if (!manualTheme) applyTheme(event.matches ? 'dark' : 'light');
+  }
+
   manualTheme = readStoredTheme();
   applyTheme(manualTheme || getSystemTheme());
 
-  systemTheme.addEventListener('change', event => {
-    if (!manualTheme) applyTheme(event.matches ? 'dark' : 'light');
-  });
+  if (typeof systemTheme.addEventListener === 'function') {
+    systemTheme.addEventListener('change', handleSystemThemeChange);
+  } else if (typeof systemTheme.addListener === 'function') {
+    systemTheme.addListener(handleSystemThemeChange);
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     updateThemeButton(document.documentElement.dataset.theme);
@@ -100,7 +106,7 @@
     };
 
     SoundManager.prototype.toggle = function() {
-      if (!window.AudioContext && !window.webkitAudioContext) {
+      if (!this.audioCtx && !this.init()) {
         this.enabled = false;
         return false;
       }
