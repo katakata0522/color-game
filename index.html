@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>色の見え方体験ゲーム v5.2</title>
+  <title>色の見え方体験ゲーム v5.3</title>
   <meta name="description" content="色の違いを見分けるブラウザゲームです。医療上の検査・診断・判定を行うものではありません。">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -22,7 +22,6 @@
     このゲームは色の見え方の違いを簡易的に体験する娯楽コンテンツです。医療上の検査・診断・判定には使用できません。画面設定、周囲の明るさ、体調などでも結果が変わります。
   </p>
 
-  <!-- 強調体験モードON/OFF -->
   <div id="highlight-switcher">
     <span>強調体験モード</span>
     <button id="highlight-btn" aria-pressed="false" title="色の区別が難しい表示を簡易的に体験します">OFF</button>
@@ -31,7 +30,6 @@
     </span>
   </div>
 
-  <!-- 色の見え方を簡易的に模した表示切替 -->
   <div id="cb-mode-switcher" role="group" aria-label="簡易表示シミュレーション">
     <button data-type="normal" class="selected" aria-pressed="true">通常</button>
     <button data-type="protanopia" aria-pressed="false">プロタン</button>
@@ -58,7 +56,6 @@
     <button id="reset-btn" class="hidden">リセット</button>
   </div>
   
-  <!-- ハイブリッド：子供・家族導線 -->
   <div id="family-question" class="family-section hidden">
     <p class="family-question-text">このゲームを遊んだのがお子さんですか？</p>
     <div class="family-buttons">
