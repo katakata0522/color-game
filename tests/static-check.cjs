@@ -37,17 +37,19 @@ assert.ok(themeSafety.includes("matchMedia('(prefers-color-scheme: dark)')"), '�
 assert.ok(themeSafety.includes("typeof SoundManager !== 'undefined'"), '音声機能の安全対策がありません');
 assert.ok(accessibility.includes("button.setAttribute('aria-pressed', String(button.classList.contains('selected')))"), '色表示の選択状態がARIAへ同期されません');
 assert.ok(readme.includes('医療上の検査、診断、判定、スクリーニングには使用できません'), 'READMEに用途制限がありません');
-assert.ok(readme.includes('色変換行列') || readme.includes('色表示の限界'), 'READMEに色表示の限界がありません');
+assert.ok(readme.includes('色表示の限界') || readme.includes('色変換行列'), 'READMEに色表示の限界がありません');
 
-// v5.1 新機能チェック
+// v5.1/5.2 新機能
 assert.ok(html.includes('id="family-question"'), '家族確認UIがありません');
 assert.ok(html.includes('id="family-message"'), '家族向けメッセージUIがありません');
 assert.ok(html.includes('id="child-yes-btn"'), '子供「はい」ボタンがありません');
 assert.ok(html.includes('id="combo"'), 'コンボ表示がありません');
 assert.ok(script.includes('COMBO_BONUS'), 'コンボボーナス設定がありません');
-assert.ok(script.includes('generateColorPair'), '改善された色生成関数がありません');
+assert.ok(script.includes('ColorUtils'), 'ColorUtilsクラスがありません');
+assert.ok(script.includes('generatePair'), '色生成関数がありません');
 assert.ok(script.includes('MIN_COLOR_DISTANCE'), '最低色差保証がありません');
 assert.ok(script.includes('onChildAnswer'), '家族導線の回答処理がありません');
 assert.ok(css.includes('.family-section'), '家族導線のスタイルがありません');
+assert.ok(script.includes('FAMILY_QUESTION_DELAY'), '家族質問の遅延設定がありません');
 
-console.log('v5.1 ダークモード・安全対策・非診断表示・ARIA・家族導線・コンボの静的確認が完了しました');
+console.log('v5.2 静的確認完了（安全・ARIA・家族導線・ColorUtils・コンボ）');
