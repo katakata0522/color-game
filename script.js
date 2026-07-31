@@ -44,7 +44,6 @@ const FIXED_STAGES = [
 // 2. ColorUtils - 色関連ロジック + CIE76 ΔE
 // ========================================================
 class ColorUtils {
-  // D65 白色点
   static Xn = 0.95047;
   static Yn = 1.00000;
   static Zn = 1.08883;
@@ -70,9 +69,7 @@ class ColorUtils {
     ];
   }
 
-  /** sRGB (0-255) → linear → XYZ → CIELAB */
   static rgbToLab(rgb) {
-    // sRGB to linear
     const toLinear = c => {
       c = c / 255;
       return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -81,12 +78,10 @@ class ColorUtils {
     const g = toLinear(rgb[1]);
     const b = toLinear(rgb[2]);
 
-    // linear RGB to XYZ (sRGB D65 matrix)
     const x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
     const y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
     const z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
 
-    // XYZ to LAB
     const f = t => {
       const delta = 6 / 29;
       return t > delta * delta * delta
@@ -98,14 +93,9 @@ class ColorUtils {
     const fy = f(y / this.Yn);
     const fz = f(z / this.Zn);
 
-    const L = 116 * fy - 16;
-    const a = 500 * (fx - fy);
-    const bLab = 200 * (fy - fz);
-
-    return [L, a, bLab];
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
   }
 
-  /** CIE76 ΔE*ab */
   static deltaE(lab1, lab2) {
     const dL = lab1[0] - lab2[0];
     const da = lab1[1] - lab2[1];
@@ -113,13 +103,10 @@ class ColorUtils {
     return Math.sqrt(dL * dL + da * da + db * db);
   }
 
-  /** シミュレーション後の2色の知覚色差を返す */
   static deltaEAfterSimulation(rgb1, rgb2, cbType) {
     const sim1 = this.applyMatrix(rgb1, cbType);
     const sim2 = this.applyMatrix(rgb2, cbType);
-    const lab1 = this.rgbToLab(sim1);
-    const lab2 = this.rgbToLab(sim2);
-    return this.deltaE(lab1, lab2);
+    return this.deltaE(this.rgbToLab(sim1), this.rgbToLab(sim2));
   }
 
   static adjustBrightness(rgb, amount) {
@@ -130,26 +117,15 @@ class ColorUtils {
     return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   }
 
-  /**
-   * 色覚タイプを意識した色ペア生成
-   * 最低距離は CIE76 ΔE*ab で保証する
-   * @param {number} difficulty 大きいほど簡単（差を大きくする）
-   * @param {string} cbType
-   * @returns {{base: number[], diff: number[]}}
-   */
   static generatePair(difficulty, cbType) {
-    // 難易度から最低ΔEを決定（おおよその目安）
-    // difficulty 50前後 → minΔE ≒ 14〜18（はっきり違う）
-    // difficulty 10前後 → minΔE ≒ 5〜7（かなり近い）
     const minDeltaE = Math.max(4.5, Math.min(18, difficulty * 0.32));
-
     const maxAttempts = 28;
+
     for (let i = 0; i < maxAttempts; i++) {
       let h = Math.floor(Math.random() * 360);
       const s = 55 + Math.floor(Math.random() * 35);
       const l = 35 + Math.floor(Math.random() * 35);
 
-      // 色覚タイプに応じたシフト方向のバイアス
       if (cbType === 'protanopia' || cbType === 'deuteranopia') {
         const bias = Math.random() < 0.55 ? (Math.random() < 0.5 ? 0 : 120) : h;
         h = bias + (Math.random() * 40 - 20);
@@ -160,24 +136,18 @@ class ColorUtils {
       h = (h + 360) % 360;
 
       const base = this.hslToRgb(h, s, l);
-
       const hueShift = Math.max(3, Math.round(difficulty / 4.2));
       const lightShift = Math.max(4, Math.round(difficulty / 3.0));
-
       const newH = (h + (Math.random() < 0.5 ? hueShift : -hueShift) + 360) % 360;
       let newL = l + (Math.random() < 0.5 ? lightShift : -lightShift);
       newL = Math.max(10, Math.min(90, newL));
-
       const diff = this.hslToRgb(newH, s, newL);
 
-      // 知覚色差で判定
-      const de = this.deltaEAfterSimulation(base, diff, cbType);
-      if (de >= minDeltaE) {
+      if (this.deltaEAfterSimulation(base, diff, cbType) >= minDeltaE) {
         return { base, diff };
       }
     }
 
-    // フォールバック（確実に差が出る組み合わせ）
     const h = Math.floor(Math.random() * 360);
     return {
       base: this.hslToRgb(h, 70, 48),
@@ -352,6 +322,13 @@ class UIManager {
     if (key === 'ArrowLeft' && idx % cols !== 0) next--;
     if (key === 'ArrowRight' && idx % cols !== cols - 1) next++;
     if (next >= 0 && next < this.panels.length) this.panels[next].focus();
+  }
+
+  /** 選択中のパネルフォーカスを解除 */
+  clearPanelFocus() {
+    if (document.activeElement && document.activeElement.classList.contains('panel')) {
+      document.activeElement.blur();
+    }
   }
 
   updateTooltip(type) {
@@ -535,6 +512,7 @@ class GameManager {
     this.ui.clearAnim(false);
     this.ui.setPlaying(false);
     this.ui.setInteractive(false);
+    this.ui.clearPanelFocus();
 
     this.panels = Array(GAME_SETTINGS.NUM_PANELS).fill(null).map(() => ({ display: '#ccc' }));
     this.ui.draw(this.panels);
@@ -553,6 +531,7 @@ class GameManager {
 
     this.ui.updateQuestion(this.q);
     this.ui.hideResult();
+    this.ui.clearPanelFocus();  // 前の選択状態を解除
 
     let base, diff;
     if (this.q <= FIXED_STAGES.length) {
@@ -592,6 +571,7 @@ class GameManager {
     if (!this.active) return;
     this._clearTimers();
     this.ui.setInteractive(false);
+    this.ui.clearPanelFocus();  // 選択直後にフォーカス解除
 
     const correct = index === this.target;
     const isFixed = this.q <= FIXED_STAGES.length;
@@ -654,6 +634,7 @@ class GameManager {
     this.combo = 0;
     this.ui.updateCombo(0);
     this.ui.setInteractive(false);
+    this.ui.clearPanelFocus();
     this.ui.showResult('時間切れ！ ⏳', '#ff9800');
     if (this.q <= FIXED_STAGES.length) this.earlyMistakes++;
     this._mistake();
@@ -665,6 +646,7 @@ class GameManager {
     this.active = false;
     this.ui.setInteractive(false);
     this.ui.setPlaying(false);
+    this.ui.clearPanelFocus();
 
     if (type === 'clear') {
       this.sound.playClear();
@@ -675,8 +657,13 @@ class GameManager {
       this.ui.showResult(`ゲームオーバー... スコア: ${this.score}`, '#333');
     }
 
+    // 序盤（1〜3問）でミスが2回以上あった場合のみ家族質問を出す
     setTimeout(() => {
-      this.ui.showFamilyQuestion();
+      if (this.earlyMistakes >= 2) {
+        this.ui.showFamilyQuestion();
+      } else {
+        // 通常はアドバイスを出さない（クリア時など）
+      }
     }, GAME_SETTINGS.FAMILY_QUESTION_DELAY);
   }
 
@@ -685,7 +672,8 @@ class GameManager {
     if (isChild) {
       this.ui.showFamilyMessage();
       setTimeout(() => this.ui.showAdvice(), 550);
-    } else if (this.earlyMistakes >= 2) {
+    } else {
+      // 大人の場合も序盤ミスが多いのでアドバイスを表示
       this.ui.showAdvice();
     }
   }
