@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>色の見え方体験ゲーム v5.0</title>
+  <title>色の見え方体験ゲーム v5.1</title>
   <meta name="description" content="色の違いを見分けるブラウザゲームです。医療上の検査・診断・判定を行うものではありません。">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -44,6 +44,7 @@
     <span>ライフ: <span id="hearts" aria-label="残りライフ"></span></span>
     <span>問目: <span id="question-number">1/15</span></span>
     <span>スコア: <span id="score">0</span></span>
+    <span>コンボ: <span id="combo">0</span></span>
     <span>タイマー: <span id="timer">0.0</span></span>
   </div>
 
@@ -58,6 +59,21 @@
     <button id="reset-btn" class="hidden">リセット</button>
   </div>
   
+  <!-- ハイブリッド：子供・家族導線 -->
+  <div id="family-question" class="family-section hidden">
+    <p class="family-question-text">このゲームを遊んだのがお子さんですか？</p>
+    <div class="family-buttons">
+      <button id="child-yes-btn" class="family-btn yes">はい</button>
+      <button id="child-no-btn" class="family-btn no">いいえ</button>
+    </div>
+  </div>
+
+  <div id="family-message" class="family-section hidden">
+    <p class="family-lead">お子さんが遊んでくれた場合は、</p>
+    <p class="family-main">この後の内容を<strong>大人の家族の方</strong>に見てもらってください。</p>
+    <p class="family-sub">一緒に確認してもらうのがおすすめです。</p>
+  </div>
+
   <div id="advice-message" class="hidden"></div>
 
 </div>
