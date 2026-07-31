@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>色の見え方体験ゲーム v5.1</title>
+  <title>色の見え方体験ゲーム v5.2</title>
   <meta name="description" content="色の違いを見分けるブラウザゲームです。医療上の検査・診断・判定を行うものではありません。">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -50,7 +50,6 @@
 
   <div id="game-board" role="grid" aria-label="カラーパネル"></div>
   
-  <!-- aria-live="assertive" でスクリーンリーダーに即座に通知 -->
   <p id="result-message" aria-live="assertive"></p>
   <p id="app-status" class="app-status hidden" aria-live="polite"></p>
   
@@ -63,8 +62,8 @@
   <div id="family-question" class="family-section hidden">
     <p class="family-question-text">このゲームを遊んだのがお子さんですか？</p>
     <div class="family-buttons">
-      <button id="child-yes-btn" class="family-btn yes">はい</button>
-      <button id="child-no-btn" class="family-btn no">いいえ</button>
+      <button id="child-yes-btn" class="family-btn yes" aria-label="はい、お子さんが遊びました">はい</button>
+      <button id="child-no-btn" class="family-btn no" aria-label="いいえ、大人が遊びました">いいえ</button>
     </div>
   </div>
 
