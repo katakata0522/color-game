@@ -1,5 +1,6 @@
 /**
- * 色覚検定ゲーム v5.0
+ * 色の見え方体験ゲーム v5.1
+ * ハイブリッド方針：楽しいゲーム + 安全な啓発（診断なし）
  * アーキテクチャ: オブジェクト指向 (Classベース)
  */
 
@@ -12,8 +13,10 @@ const GAME_SETTINGS = {
     GRID_SIZE: 5,
     RESULT_DISPLAY_DELAY: 1000,
     SCORE_PER_CORRECT: 100,
+    COMBO_BONUS: 25,           // 連続正解ボーナス
     TIMER_DURATION_PER_QUESTION: 9000,
-    MAX_QUESTIONS: 15
+    MAX_QUESTIONS: 15,
+    MIN_COLOR_DISTANCE: 28     // シミュレーション後の最低RGB距離保証
 };
 
 const cbTypeTips = {
@@ -30,15 +33,16 @@ const colorBlindMatrices = {
     tritanopia: [[0.95, 0.05, 0], [0, 0.43333, 0.56667], [0, 0.475, 0.525]]
 };
 
+// 序盤3問は意図的な色覚混同を意識した固定色（体験用）
 const colorBlindnessTestStages = [
-    { base: [255, 68, 68], diff: [68, 255, 68] },   // Q1: 赤-緑 (プロタン向け)
-    { base: [255, 255, 68], diff: [68, 255, 68] },  // Q2: 黄-緑 (デュータン向け)
-    { base: [255, 153, 187], diff: [187, 187, 187] } // Q3: ピンク-灰 (トリタン向け)
+    { base: [255, 68, 68], diff: [68, 255, 68] },   // Q1: 赤-緑
+    { base: [255, 255, 68], diff: [68, 255, 68] },  // Q2: 黄-緑
+    { base: [255, 153, 187], diff: [187, 187, 187] } // Q3: ピンク-灰
 ];
 
 
 // ========================================================
-// 2. SoundManager (Web Audio API を用いた動的サウンド生成)
+// 2. SoundManager
 // ========================================================
 class SoundManager {
     constructor() {
@@ -80,26 +84,22 @@ class SoundManager {
     }
 
     playCorrect() {
-        // ピン・ポン
         this.playTone(880, 'sine', 0.15, 0.1);
         setTimeout(() => this.playTone(1108.73, 'sine', 0.3, 0.1), 100);
     }
 
     playWrong() {
-        // ブブッ
         this.playTone(150, 'sawtooth', 0.15, 0.1);
         setTimeout(() => this.playTone(150, 'sawtooth', 0.2, 0.1), 150);
     }
 
     playTimeout() {
-        // チーーーン
         this.playTone(400, 'square', 0.5, 0.05);
         setTimeout(() => this.playTone(350, 'square', 0.5, 0.05), 100);
     }
 
     playClear() {
-        // ファンファーレ風
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        const notes = [523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, i) => {
             setTimeout(() => this.playTone(freq, 'sine', 0.3, 0.1), i * 150);
         });
@@ -109,13 +109,12 @@ class SoundManager {
 
 
 // ========================================================
-// 3. UIManager (画面描画・DOMイベント管理)
+// 3. UIManager
 // ========================================================
 class UIManager {
     constructor(gameManager) {
         this.gm = gameManager;
         
-        // DOM要素の取得
         this.dom = {
             container: document.getElementById('game-container'),
             board: document.getElementById('game-board'),
@@ -124,9 +123,14 @@ class UIManager {
             resultMsg: document.getElementById('result-message'),
             qNum: document.getElementById('question-number'),
             score: document.getElementById('score'),
+            combo: document.getElementById('combo'),
             hearts: document.getElementById('hearts'),
             timer: document.getElementById('timer'),
             advice: document.getElementById('advice-message'),
+            familyQuestion: document.getElementById('family-question'),
+            familyMessage: document.getElementById('family-message'),
+            childYesBtn: document.getElementById('child-yes-btn'),
+            childNoBtn: document.getElementById('child-no-btn'),
             cbButtons: document.querySelectorAll('#cb-mode-switcher button[data-type]'),
             cbTooltip: document.getElementById('cb-tooltip'),
             highlightBtn: document.getElementById('highlight-btn'),
@@ -156,7 +160,6 @@ class UIManager {
         this.dom.startBtn.addEventListener('click', () => this.gm.startGame());
         this.dom.resetBtn.addEventListener('click', () => this.gm.resetGame());
         
-        // 色覚切替
         this.dom.cbButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 this.dom.cbButtons.forEach(b => b.classList.remove('selected'));
@@ -168,7 +171,6 @@ class UIManager {
             btn.addEventListener('mouseleave', () => this.updateTooltip(this.gm.currentCBType));
         });
 
-        // 強調モード切替
         this.dom.highlightBtn.addEventListener('click', () => {
             const isActive = this.gm.toggleHighlightMode();
             this.dom.highlightBtn.textContent = isActive ? "ON" : "OFF";
@@ -176,15 +178,21 @@ class UIManager {
             this.dom.highlightBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
         });
 
-        // サウンド切替
         this.dom.soundBtn.addEventListener('click', () => {
-            this.gm.sound.init(); // ユーザー操作契機でAudioContextを有効化
+            this.gm.sound.init();
             const isEnabled = this.gm.sound.toggle();
             this.dom.soundBtn.textContent = isEnabled ? "🔊" : "🔇";
             this.dom.soundBtn.classList.toggle('muted', !isEnabled);
         });
 
-        // パネル操作
+        // 家族導線ボタン
+        if (this.dom.childYesBtn) {
+            this.dom.childYesBtn.addEventListener('click', () => this.gm.onChildAnswer(true));
+        }
+        if (this.dom.childNoBtn) {
+            this.dom.childNoBtn.addEventListener('click', () => this.gm.onChildAnswer(false));
+        }
+
         this.dom.board.addEventListener('click', (e) => {
             const panel = e.target.closest('.panel');
             if (panel) this.gm.handlePanelSelect(parseInt(panel.dataset.index));
@@ -230,6 +238,7 @@ class UIManager {
     }
 
     updateScore(score) { this.dom.score.textContent = score; }
+    updateCombo(combo) { if (this.dom.combo) this.dom.combo.textContent = combo; }
     updateQuestion(q, max) { this.dom.qNum.textContent = `${q}/${max}`; }
     updateTimer(ms) { this.dom.timer.textContent = (ms / 1000).toFixed(1); }
 
@@ -303,6 +312,29 @@ class UIManager {
         this.dom.resultMsg.classList.remove('cleared');
     }
 
+    showFamilyQuestion() {
+        if (this.dom.familyQuestion) {
+            this.dom.familyQuestion.classList.remove('hidden');
+        }
+        if (this.dom.familyMessage) {
+            this.dom.familyMessage.classList.add('hidden');
+        }
+    }
+
+    showFamilyMessage() {
+        if (this.dom.familyQuestion) {
+            this.dom.familyQuestion.classList.add('hidden');
+        }
+        if (this.dom.familyMessage) {
+            this.dom.familyMessage.classList.remove('hidden');
+        }
+    }
+
+    hideFamilyUI() {
+        if (this.dom.familyQuestion) this.dom.familyQuestion.classList.add('hidden');
+        if (this.dom.familyMessage) this.dom.familyMessage.classList.add('hidden');
+    }
+
     showAdvice() {
         this.dom.advice.innerHTML = `
             このゲームは医療上の検査・診断を行うものではありません。<br>
@@ -322,20 +354,20 @@ class UIManager {
 
 
 // ========================================================
-// 4. GameManager (ゲームのコアロジック)
+// 4. GameManager
 // ========================================================
 class GameManager {
     constructor() {
         this.sound = new SoundManager();
         this.ui = new UIManager(this);
         
-        // 状態
         this.currentCBType = "normal";
         this.highlightExperienceMode = false;
         
         this.gameActive = false;
         this.currentQuestion = 1;
         this.score = 0;
+        this.combo = 0;
         this.lives = GAME_SETTINGS.INITIAL_LIVES;
         this.targetIndex = -1;
         
@@ -344,9 +376,7 @@ class GameManager {
         this.timeLeft = 0;
         this.gameStartTime = 0;
         
-        // 最初の3問でのミス回数（ゲーム結果だけで診断しないため回数で扱う）
         this.earlyStageMistakes = 0;
-        
         this.panelsData = [];
 
         this.ui.updateTooltip(this.currentCBType);
@@ -356,7 +386,7 @@ class GameManager {
     setCBType(type) {
         this.currentCBType = type;
         if (this.gameActive) this.updateBoardColors();
-        else this.resetGame(); // 非アクティブ時は色リセット
+        else this.resetGame();
     }
 
     toggleHighlightMode() {
@@ -384,18 +414,21 @@ class GameManager {
     startGame() {
         if (this.gameActive) return;
         this.clearTransitionTimeout();
-        this.sound.init(); // ユーザーインタラクション時にAudioContextを初期化
+        this.sound.init();
         this.gameActive = true;
         this.score = 0;
+        this.combo = 0;
         this.lives = GAME_SETTINGS.INITIAL_LIVES;
         this.currentQuestion = 1;
         this.earlyStageMistakes = 0;
         this.gameStartTime = Date.now();
         
         this.ui.updateScore(this.score);
+        this.ui.updateCombo(this.combo);
         this.ui.renderHearts(this.lives);
         this.ui.hideResult();
         this.ui.hideAdvice();
+        this.ui.hideFamilyUI();
         this.ui.resetClearAnimation();
         this.ui.toggleGameButtons(true);
         
@@ -408,23 +441,73 @@ class GameManager {
         this.gameActive = false;
         this.currentQuestion = 1;
         this.score = 0;
+        this.combo = 0;
         this.lives = GAME_SETTINGS.INITIAL_LIVES;
         this.earlyStageMistakes = 0;
         
         this.ui.updateQuestion(this.currentQuestion, GAME_SETTINGS.MAX_QUESTIONS);
         this.ui.updateScore(this.score);
+        this.ui.updateCombo(this.combo);
         this.ui.renderHearts(this.lives);
         this.ui.updateTimer(GAME_SETTINGS.TIMER_DURATION_PER_QUESTION);
         
         this.ui.hideResult();
         this.ui.hideAdvice();
+        this.ui.hideFamilyUI();
         this.ui.resetClearAnimation();
         this.ui.toggleGameButtons(false);
         this.ui.setInteractions(false);
 
-        // リセット時は全パネルグレー
         this.panelsData = Array(GAME_SETTINGS.NUM_PANELS).fill({ displayColor: '#ccc' });
         this.ui.drawBoard(this.panelsData);
+    }
+
+    // 改善された色生成：色相シフト + 明度変化 + 最低距離保証
+    generateColorPair(difficultyValue) {
+        let attempts = 0;
+        const maxAttempts = 20;
+
+        while (attempts < maxAttempts) {
+            attempts++;
+            const h = Math.floor(Math.random() * 360);
+            const s = Math.floor(Math.random() * 35) + 55;
+            const l = Math.floor(Math.random() * 35) + 35;
+
+            const baseRGB = this.hslToRgb(h, s, l);
+
+            // 難易度に応じた色相シフト量と明度シフト量
+            const hueShift = Math.max(3, Math.round(difficultyValue / 4));
+            const lightShift = Math.max(4, Math.round(difficultyValue / 3));
+
+            const newH = (h + (Math.random() < 0.5 ? hueShift : -hueShift) + 360) % 360;
+            let newL = l + (Math.random() < 0.5 ? lightShift : -lightShift);
+            if (newL > 92) newL = l - lightShift;
+            if (newL < 8) newL = l + lightShift;
+
+            const diffRGB = this.hslToRgb(newH, s, newL);
+
+            // シミュレーション後の距離を確認
+            const simBase = this.applyColorBlindness(baseRGB, this.currentCBType);
+            const simDiff = this.applyColorBlindness(diffRGB, this.currentCBType);
+            const dist = this.colorDistance(simBase, simDiff);
+
+            if (dist >= GAME_SETTINGS.MIN_COLOR_DISTANCE) {
+                return { baseRGB, diffRGB };
+            }
+        }
+
+        // フォールバック（保証できなかった場合）
+        const h = Math.floor(Math.random() * 360);
+        const baseRGB = this.hslToRgb(h, 70, 50);
+        const diffRGB = this.hslToRgb((h + 18) % 360, 70, 58);
+        return { baseRGB, diffRGB };
+    }
+
+    colorDistance(rgb1, rgb2) {
+        const dr = rgb1[0] - rgb2[0];
+        const dg = rgb1[1] - rgb2[1];
+        const db = rgb1[2] - rgb2[2];
+        return Math.sqrt(dr * dr + dg * dg + db * db);
     }
 
     setupQuestion() {
@@ -438,32 +521,26 @@ class GameManager {
         let baseRGB, diffRGB;
 
         if (this.currentQuestion <= colorBlindnessTestStages.length) {
-            // ステージ1~3: 意図的な色覚混同色テスト
             baseRGB = colorBlindnessTestStages[this.currentQuestion - 1].base;
             diffRGB = colorBlindnessTestStages[this.currentQuestion - 1].diff;
         } else {
-            // ステージ4以降: HSLベースの動的難易度テスト
+            // 改善された難易度カーブ
             let difficultyValue;
-            if (this.currentQuestion <= 10) difficultyValue = 60 - (this.currentQuestion - 4) * 5;
-            else difficultyValue = [14, 12, 10, 8, 6][this.currentQuestion - 11];
-            
-            const h = Math.floor(Math.random() * 360);
-            const s = Math.floor(Math.random() * 40) + 60; 
-            const l = Math.floor(Math.random() * 40) + 40; 
-            
-            baseRGB = this.hslToRgb(h, s, l);
-            
-            const changeAmount = Math.max(difficultyValue / 2.5, 2); 
-            let newL = l + (Math.random() < 0.5 ? changeAmount : -changeAmount);
-            if (newL > 95) newL = l - changeAmount;
-            if (newL < 5) newL = l + changeAmount;
-            
-            diffRGB = this.hslToRgb(h, s, newL);
+            if (this.currentQuestion <= 8) {
+                difficultyValue = 55 - (this.currentQuestion - 4) * 6; // 序盤〜中盤
+            } else if (this.currentQuestion <= 12) {
+                difficultyValue = 28 - (this.currentQuestion - 9) * 4;
+            } else {
+                difficultyValue = [14, 11, 8][this.currentQuestion - 13];
+            }
+
+            const pair = this.generateColorPair(difficultyValue);
+            baseRGB = pair.baseRGB;
+            diffRGB = pair.diffRGB;
         }
 
         this.targetIndex = Math.floor(Math.random() * GAME_SETTINGS.NUM_PANELS);
         
-        // パネルデータを生成
         this.panelsData = [];
         for (let i = 0; i < GAME_SETTINGS.NUM_PANELS; i++) {
             this.panelsData.push({
@@ -490,9 +567,8 @@ class GameManager {
 
         this.panelsData.forEach(p => {
             const simulatedColor = this.applyColorBlindness(p.rawRGB, this.currentCBType);
-            // 強調モードでは対象パネルだけ明度差を足し、正解不能にならないようにする。
             const displayColor = shouldHighlightTarget && p.isTarget
-                ? this.adjustBrightness(simulatedColor, 55)
+                ? this.adjustBrightness(simulatedColor, 50)
                 : simulatedColor;
             p.displayColor = this.rgbToCss(displayColor);
         });
@@ -510,13 +586,18 @@ class GameManager {
 
         if (isTarget) {
             this.sound.playCorrect();
-            this.score += GAME_SETTINGS.SCORE_PER_CORRECT;
+            this.combo += 1;
+            const bonus = (this.combo - 1) * GAME_SETTINGS.COMBO_BONUS;
+            this.score += GAME_SETTINGS.SCORE_PER_CORRECT + bonus;
             this.ui.updateScore(this.score);
-            this.ui.showResult('正解！✨', '#4CAF50');
+            this.ui.updateCombo(this.combo);
+            this.ui.showResult(this.combo > 1 ? `正解！ コンボ×${this.combo} ✨` : '正解！✨', '#4CAF50');
             this.currentQuestion++;
             this.scheduleTransition(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
         } else {
             this.sound.playWrong();
+            this.combo = 0;
+            this.ui.updateCombo(this.combo);
             this.ui.shakePanel(index);
             this.ui.shakeBoard();
             this.ui.showResult('不正解... 💧', '#f44336');
@@ -532,7 +613,6 @@ class GameManager {
         if (this.lives <= 0) {
             this.scheduleTransition(() => this.endGame('over'), GAME_SETTINGS.RESULT_DISPLAY_DELAY);
         } else {
-            // ミス時は少し早めに次へ
             this.scheduleTransition(() => this.setupQuestion(), GAME_SETTINGS.RESULT_DISPLAY_DELAY * 0.8);
         }
     }
@@ -565,6 +645,8 @@ class GameManager {
     handleTimeOut() {
         if (!this.gameActive) return;
         this.sound.playTimeout();
+        this.combo = 0;
+        this.ui.updateCombo(this.combo);
         this.ui.setInteractions(false);
         this.ui.showResult('時間切れ！ ⏳', '#ff9800');
         if (this.currentQuestion <= colorBlindnessTestStages.length) this.earlyStageMistakes++;
@@ -588,8 +670,24 @@ class GameManager {
             this.ui.showResult(`ゲームオーバー... スコア: ${this.score}`, '#333');
         }
 
-        if (this.earlyStageMistakes >= 2) {
-            this.ui.showAdvice();
+        // ハイブリッド：常に家族確認を挟む（押し付けにならないよう選択式）
+        this.ui.showFamilyQuestion();
+    }
+
+    onChildAnswer(isChild) {
+        this.ui.hideFamilyUI();
+
+        if (isChild) {
+            this.ui.showFamilyMessage();
+            // 少し間を置いてからアドバイスを表示
+            setTimeout(() => {
+                this.ui.showAdvice();
+            }, 600);
+        } else {
+            // 大人の場合も、早期ミスが多ければ優しくアドバイス
+            if (this.earlyStageMistakes >= 2) {
+                this.ui.showAdvice();
+            }
         }
     }
 
