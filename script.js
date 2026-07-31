@@ -1,7 +1,7 @@
 /**
- * 色の見え方体験ゲーム v5.2
+ * 色の見え方体験ゲーム v5.3
  * ハイブリッド：楽しいゲーム + 安全な啓発（診断なし）
- * リファクタリング済み：ColorUtils分離 / 状態管理整理 / UX滑らか化
+ * v5.3: CIE76 ΔE*ab による知覚色差保証を導入
  */
 
 // ========================================================
@@ -16,8 +16,7 @@ const GAME_SETTINGS = {
   COMBO_BONUS: 30,
   TIMER_DURATION_MS: 9000,
   MAX_QUESTIONS: 15,
-  MIN_COLOR_DISTANCE: 32,          // シミュレーション後の最低距離
-  FAMILY_QUESTION_DELAY: 700       // 結果表示後に家族質問を出すまでの遅延
+  FAMILY_QUESTION_DELAY: 700
 };
 
 const CB_TIPS = {
@@ -36,15 +35,20 @@ const CB_MATRICES = {
 
 // 序盤固定問題（体験用）
 const FIXED_STAGES = [
-  { base: [255, 68, 68],  diff: [68, 255, 68] },   // 赤-緑
-  { base: [255, 255, 68], diff: [68, 255, 68] },   // 黄-緑
-  { base: [255, 153, 187],diff: [187, 187, 187] }  // ピンク-灰
+  { base: [255, 68, 68],  diff: [68, 255, 68] },
+  { base: [255, 255, 68], diff: [68, 255, 68] },
+  { base: [255, 153, 187],diff: [187, 187, 187] }
 ];
 
 // ========================================================
-// 2. ColorUtils - 色関連ロジックを完全分離
+// 2. ColorUtils - 色関連ロジック + CIE76 ΔE
 // ========================================================
 class ColorUtils {
+  // D65 白色点
+  static Xn = 0.95047;
+  static Yn = 1.00000;
+  static Zn = 1.08883;
+
   static hslToRgb(h, s, l) {
     s /= 100; l /= 100;
     const k = n => (n + h / 30) % 12;
@@ -66,9 +70,56 @@ class ColorUtils {
     ];
   }
 
-  static distance(a, b) {
-    const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
-    return Math.sqrt(dr * dr + dg * dg + db * db);
+  /** sRGB (0-255) → linear → XYZ → CIELAB */
+  static rgbToLab(rgb) {
+    // sRGB to linear
+    const toLinear = c => {
+      c = c / 255;
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    const r = toLinear(rgb[0]);
+    const g = toLinear(rgb[1]);
+    const b = toLinear(rgb[2]);
+
+    // linear RGB to XYZ (sRGB D65 matrix)
+    const x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
+    const y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
+    const z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
+
+    // XYZ to LAB
+    const f = t => {
+      const delta = 6 / 29;
+      return t > delta * delta * delta
+        ? Math.pow(t, 1 / 3)
+        : t / (3 * delta * delta) + 4 / 29;
+    };
+
+    const fx = f(x / this.Xn);
+    const fy = f(y / this.Yn);
+    const fz = f(z / this.Zn);
+
+    const L = 116 * fy - 16;
+    const a = 500 * (fx - fy);
+    const bLab = 200 * (fy - fz);
+
+    return [L, a, bLab];
+  }
+
+  /** CIE76 ΔE*ab */
+  static deltaE(lab1, lab2) {
+    const dL = lab1[0] - lab2[0];
+    const da = lab1[1] - lab2[1];
+    const db = lab1[2] - lab2[2];
+    return Math.sqrt(dL * dL + da * da + db * db);
+  }
+
+  /** シミュレーション後の2色の知覚色差を返す */
+  static deltaEAfterSimulation(rgb1, rgb2, cbType) {
+    const sim1 = this.applyMatrix(rgb1, cbType);
+    const sim2 = this.applyMatrix(rgb2, cbType);
+    const lab1 = this.rgbToLab(sim1);
+    const lab2 = this.rgbToLab(sim2);
+    return this.deltaE(lab1, lab2);
   }
 
   static adjustBrightness(rgb, amount) {
@@ -81,33 +132,37 @@ class ColorUtils {
 
   /**
    * 色覚タイプを意識した色ペア生成
-   * - プロタン/デュータン: 赤緑方向のシフトを優先
-   * - トリタン: 青黄方向を優先
-   * - 最低距離をシミュレーション後に保証
+   * 最低距離は CIE76 ΔE*ab で保証する
+   * @param {number} difficulty 大きいほど簡単（差を大きくする）
+   * @param {string} cbType
+   * @returns {{base: number[], diff: number[]}}
    */
   static generatePair(difficulty, cbType) {
-    const maxAttempts = 24;
+    // 難易度から最低ΔEを決定（おおよその目安）
+    // difficulty 50前後 → minΔE ≒ 14〜18（はっきり違う）
+    // difficulty 10前後 → minΔE ≒ 5〜7（かなり近い）
+    const minDeltaE = Math.max(4.5, Math.min(18, difficulty * 0.32));
+
+    const maxAttempts = 28;
     for (let i = 0; i < maxAttempts; i++) {
       let h = Math.floor(Math.random() * 360);
       const s = 55 + Math.floor(Math.random() * 35);
       const l = 35 + Math.floor(Math.random() * 35);
 
       // 色覚タイプに応じたシフト方向のバイアス
-      let hueBias = 0;
       if (cbType === 'protanopia' || cbType === 'deuteranopia') {
-        // 赤緑軸を意識して 0°/120° 付近を優先しやすくする
-        hueBias = Math.random() < 0.55 ? (Math.random() < 0.5 ? 0 : 120) : h;
-        h = hueBias + (Math.random() * 40 - 20);
+        const bias = Math.random() < 0.55 ? (Math.random() < 0.5 ? 0 : 120) : h;
+        h = bias + (Math.random() * 40 - 20);
       } else if (cbType === 'tritanopia') {
-        hueBias = Math.random() < 0.5 ? 60 : 240;
-        h = hueBias + (Math.random() * 50 - 25);
+        const bias = Math.random() < 0.5 ? 60 : 240;
+        h = bias + (Math.random() * 50 - 25);
       }
       h = (h + 360) % 360;
 
       const base = this.hslToRgb(h, s, l);
 
-      const hueShift = Math.max(4, Math.round(difficulty / 3.8));
-      const lightShift = Math.max(5, Math.round(difficulty / 2.8));
+      const hueShift = Math.max(3, Math.round(difficulty / 4.2));
+      const lightShift = Math.max(4, Math.round(difficulty / 3.0));
 
       const newH = (h + (Math.random() < 0.5 ? hueShift : -hueShift) + 360) % 360;
       let newL = l + (Math.random() < 0.5 ? lightShift : -lightShift);
@@ -115,18 +170,18 @@ class ColorUtils {
 
       const diff = this.hslToRgb(newH, s, newL);
 
-      const simBase = this.applyMatrix(base, cbType);
-      const simDiff = this.applyMatrix(diff, cbType);
-      if (this.distance(simBase, simDiff) >= GAME_SETTINGS.MIN_COLOR_DISTANCE) {
+      // 知覚色差で判定
+      const de = this.deltaEAfterSimulation(base, diff, cbType);
+      if (de >= minDeltaE) {
         return { base, diff };
       }
     }
 
-    // フォールバック（確実に差が出る）
+    // フォールバック（確実に差が出る組み合わせ）
     const h = Math.floor(Math.random() * 360);
     return {
       base: this.hslToRgb(h, 70, 48),
-      diff: this.hslToRgb((h + 22) % 360, 70, 58)
+      diff: this.hslToRgb((h + 24) % 360, 70, 60)
     };
   }
 }
@@ -165,7 +220,7 @@ class SoundManager {
       gain.connect(this.ctx.destination);
       osc.start();
       osc.stop(this.ctx.currentTime + duration);
-    } catch (_) { /* 安全に無視 */ }
+    } catch (_) {}
   }
 
   playCorrect() {
@@ -311,9 +366,7 @@ class UIManager {
   renderHearts(lives) {
     const heart = `<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
     const broken = `<svg class="broken" viewBox="0 0 24 24"><path d="M13.45 3.13l-.2.23-.2-.23C12.46 2.52 11.76 2 11 2c-1.74 0-3.41.81-4.5 2.09C5.41 5.19 5 6.3 5 7.5c0 2.12 1.64 4.15 4.18 6.51l.47.43-.65.65-3.05-2.73c-1.04-.94-2.08-2-2.08-3.36 0-1.54 1.13-2.84 2.62-3.16.8-.18 1.63-.01 2.38.51L9.5 5.5l1.5-1.5-1.1-1.1c.6-.5 1.3-.7 2.1-.7.76 0 1.46.29 2.05.88l.2.23zM19.5 3c-1.74 0-3.41.81-4.5 2.09l-1.1 1.1 1.5 1.5L16 6.5l.38-.38c.75-.52 1.58-.69 2.38-.51 1.49.32 2.62 1.62 2.62 3.16 0 1.36-1.04 2.42-2.08 3.36l-3.05 2.73.65.65.47-.43C17.36 11.65 19 9.62 19 7.5c0-1.2-.41-2.31-1.5-3.41z"/></svg>`;
-    this.dom.hearts.innerHTML = lives > 0
-      ? heart.repeat(lives)
-      : broken;
+    this.dom.hearts.innerHTML = lives > 0 ? heart.repeat(lives) : broken;
   }
 
   draw(panelsData) {
@@ -622,7 +675,6 @@ class GameManager {
       this.ui.showResult(`ゲームオーバー... スコア: ${this.score}`, '#333');
     }
 
-    // 結果を少し見せてから家族質問へ（自然な流れ）
     setTimeout(() => {
       this.ui.showFamilyQuestion();
     }, GAME_SETTINGS.FAMILY_QUESTION_DELAY);
