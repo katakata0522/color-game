@@ -1,0 +1,16 @@
+{
+  "name": "color-vision-experience-game",
+  "version": "5.3.0",
+  "private": true,
+  "description": "色の違いを見分けるブラウザゲームです。医療上の検査・診断・判定を行うものではありません。",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "node --check server.js && node --check script.js && node --check theme-safety.js && node --check accessibility.js && node tests/static-check.cjs",
+    "lint": "node --check server.js && node --check script.js && node --check theme-safety.js && node --check accessibility.js && node tests/static-check.cjs",
+    "test": "node tests/static-check.cjs"
+  },
+  "dependencies": {
+    "express": "^5.3.0"
+  }
+}
